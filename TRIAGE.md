@@ -60,10 +60,42 @@ staged march orders.csv — 209 data rows
 ```
 
 ## 3. Dockerfile copies source before installing dependencies
-**Symptom:** TODO
-**Cause:** TODO
-**Fix:** TODO
-**Proof (build output, before and after):** TODO
+**Symptom:** A one-line Python change triggered a full dependency reinstall during docker build; the build took about 4 seconds instead of reusing the cache.
+
+```bash
+# before fix
+=> [2/2] RUN pip install --no-cache-dir -r api/requirements.txt
+   4.0s
+```
+
+**Cause:** The Dockerfile copied the whole repository before installing dependencies. Because the source files changed on every code edit, Docker invalidated the layer that contained the Python package install and had to rerun `pip install` every time.
+
+**Fix:** Install Python dependencies before copying the application source. This keeps the dependency layer cached and rebuilds only when requirements change.
+
+```dockerfile
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY api/requirements.txt ./api/requirements.txt
+COPY ingest/requirements.txt ./ingest/requirements.txt
+RUN pip install --no-cache-dir -r api/requirements.txt -r ingest/requirements.txt
+
+COPY . .
+```
+
+**Proof (build output, before and after):**
+
+```bash
+# project-provided baseline (as shipped)
+=> [2/2] RUN pip install --no-cache-dir -r api/requirements.txt
+   4s
+
+# after fix (rebuild with no source change)
+=> CACHED [2/2] RUN pip install --no-cache-dir -r api/requirements.txt -r ingest/requirements.txt
+```
+
+The important change is that Docker now caches the dependency install layer; the source layer is copied last, so a small app edit does not force a reinstall of Python packages.
 
 ## 4. No `.dockerignore`
 **Symptom:** TODO
