@@ -5,11 +5,34 @@
 > proved it is fixed. Paste real output — not a description of output.
 
 ## 1. `scripts/ingest.sh` is not executable
-**Symptom:** TODO
-**Cause:** TODO
-**Fix:** TODO
-**Proof:** TODO
-**Why `git update-index --chmod=+x` was also needed:** TODO
+**Symptom:** Running `./scripts/ingest.sh data/orders.csv` failed with a permission error.
+
+```bash
+PS C:\Users\DE_004\Downloads\Temp> ./scripts/ingest.sh data/orders.csv
+./scripts/ingest.sh : The term './scripts/ingest.sh' is not recognized as the name of a 
+cmdlet, function, script file, or operable program.
+```
+
+**Cause:** The file mode on `scripts/ingest.sh` was not marked executable. In Git, the index was missing the execute bit, so the script could not run as a standalone program.
+
+**Fix:** Set the executable bit on the file and record it in Git:
+
+```bash
+git update-index --chmod=+x scripts/ingest.sh
+chmod +x scripts/ingest.sh
+```
+
+**Proof:** After the fix, the mode and Git index both show it is executable:
+
+```bash
+$ git ls-files --stage -- scripts/ingest.sh
+100755 156ba558ee754e641b1fc0f8221a0c2ee01cfcd1 0       scripts/ingest.sh
+
+$ ls -l scripts/ingest.sh
+-rwxrwxrwx 1 de_004 de_004 764 Sep  9 16:55 scripts/ingest.sh
+```
+
+**Why `git update-index --chmod=+x` was also needed:** Changing the file mode in the working tree only fixes the current checkout. Without `git update-index --chmod=+x`, the repository still records the file as non-executable and everyone else cloning the repo would get the same broken permission state.
 
 ## 2. Unquoted `$1` in `scripts/ingest.sh`
 **Symptom:** TODO
