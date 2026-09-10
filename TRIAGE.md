@@ -35,10 +35,29 @@ $ ls -l scripts/ingest.sh
 **Why `git update-index --chmod=+x` was also needed:** Changing the file mode in the working tree only fixes the current checkout. Without `git update-index --chmod=+x`, the repository still records the file as non-executable and everyone else cloning the repo would get the same broken permission state.
 
 ## 2. Unquoted `$1` in `scripts/ingest.sh`
-**Symptom:** TODO
-**Cause:** TODO
-**Fix:** TODO
-**Proof:** TODO
+**Symptom:** A file path containing spaces caused the shell to fail with a binary-operator error.
+
+```bash
+$ cp data/orders.csv "data/march orders.csv"
+$ bash scripts/ingest.sh "data/march orders.csv"
+./scripts/ingest.sh: line 10: [: data/march: binary operator expected
+```
+
+**Cause:** The script checked `[ ! -f $1 ]` without quoting `$1`. When the path was `data/march orders.csv`, Bash split it into two arguments and the test expression became invalid.
+
+**Fix:** Quote the argument in the `if` test:
+
+```bash
+if [ ! -f "$1" ]; then
+```
+
+**Proof:** After the fix, the same path works successfully:
+
+```bash
+$ cp data/orders.csv "data/march orders.csv"
+$ bash scripts/ingest.sh "data/march orders.csv"
+staged march orders.csv — 209 data rows
+```
 
 ## 3. Dockerfile copies source before installing dependencies
 **Symptom:** TODO
