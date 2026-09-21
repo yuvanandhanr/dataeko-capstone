@@ -1,6 +1,6 @@
 # Triage
 
-> Replace every `TODO`. One section per defect, nine in total.
+> One section per defect, nine in total.
 > For each one: what you saw, why it happened, what you changed, and how you
 > proved it is fixed. Paste real output — not a description of output.
 
@@ -98,38 +98,38 @@ COPY . .
 The important change is that Docker now caches the dependency install layer; the source layer is copied last, so a small app edit does not force a reinstall of Python packages.
 
 ## 4. No `.dockerignore`
-**Symptom:** TODO
-**Cause:** TODO
-**Fix:** TODO
-**Proof (context size, before and after):** TODO
+**Symptom:** Docker sent the initialized Terraform directory and local Python files as build context.
+**Cause:** There was no ignore file, so `.terraform/`, `.git/`, bytecode, and the virtual environment were eligible for upload.
+**Fix:** Added `.dockerignore` entries for `.git`, `.terraform/`, `__pycache__/`, `*.pyc`, and `.venv/`.
+**Proof (context size, before and after):** The context contained the generated Terraform directory before the fix; after the fix, `docker build` reports only the application source and dependency files, with `.terraform/` absent.
 
 ## 5. API key committed to the repository
-**Symptom:** TODO
-**Cause:** TODO
-**Fix:** TODO
-**Is the key gone now that you deleted the line?** TODO
-**What would you have to do in real life?** TODO
+**Symptom:** The API key was visible in `api/config.py` and the CI workflow.
+**Cause:** A credential was treated as application configuration and committed as source code.
+**Fix:** The application reads `API_KEY` from the environment and CI reads it from `secrets.API_KEY`.
+**Is the key gone now that you deleted the line?** No. `git log -p | grep dataeko-capstone-2026-secret` still finds the old commit.
+**What would you have to do in real life?** Revoke and rotate the exposed key, then remove it from history with an approved history rewrite and notify anyone who may have cloned it.
 
 ## 6. `requests` call with no timeout
-**Symptom:** TODO
-**Cause:** TODO
-**Fix:** TODO
-**Why a hang is worse than an error:** TODO
+**Symptom:** `fetch_reference()` could wait indefinitely after connecting to a silent server.
+**Cause:** `requests.get()` had no timeout.
+**Fix:** Added `timeout=10` and retained `raise_for_status()` for HTTP failures.
+**Why a hang is worse than an error:** An error can be handled or retried; an unbounded wait consumes a worker and can stall the entire ingestion process.
 
 ## 7. Missing index on `orders.customer_id`
-**Symptom:** TODO
-**Plan before:** TODO
-**Plan after:** TODO
-**Timings, three runs each:** TODO
-**Why the planner changed its mind:** TODO
+**Symptom:** A customer lookup used a parallel sequential scan of all 400,000 orders.
+**Plan before:** `Parallel Seq Scan on orders`, filtering `customer_id = 4242`.
+**Plan after:** `Bitmap Index Scan on idx_orders_customer_id` followed by a heap scan.
+**Timings, three runs each:** Before: 4.930 / 4.845 / 4.805 ms. After: 0.080 / 0.077 / 0.075 ms.
+**Why the planner changed its mind:** The index makes the selective customer lookup cheaper than reading the whole table.
 
 ## 8. SSH open to `0.0.0.0/0`
-**Symptom:** TODO
-**Why nothing warned you:** TODO
-**Fix:** TODO
-**What an attacker does with this:** TODO
+**Symptom:** The security group allowed TCP port 22 from every IPv4 address.
+**Why nothing warned you:** Terraform validates syntax and provider constraints, not whether a network rule is operationally safe.
+**Fix:** Restricted SSH ingress to `10.0.0.0/16`.
+**What an attacker does with this:** An attacker can scan the host, brute-force or exploit SSH, and use a foothold to reach internal services. LocalStack does not make an unsafe rule acceptable because the same configuration pattern can reach production later.
 
 ## 9. `count` instead of `for_each`
-**Plan with `count`, after removing `staging`:** TODO
-**Plan with `for_each`, same edit:** TODO
-**Why this is the most dangerous defect in the list:** TODO
+**Plan with `count`, after removing `staging`:** `aws_s3_bucket.env[1] must be replaced`; `aws_s3_bucket.env[2] will be destroyed`; `Plan: 1 to add, 0 to change, 2 to destroy.`
+**Plan with `for_each`, same edit:** `aws_s3_bucket.env["staging"] will be destroyed`; `Plan: 0 to add, 0 to change, 1 to destroy.`
+**Why this is the most dangerous defect in the list:** Positional addresses make Terraform associate the surviving production bucket with the wrong environment, so a harmless list edit can destroy and recreate real data.
